@@ -26,11 +26,11 @@ ga.select.habitat.metadata <- function(data) {
 }
 
 # designate project-specific cache
-options(gargle_oauth_cache = ".secrets")
-# check the value of the option, if you like
-gargle::gargle_oauth_cache()
-googlesheets4::gs4_auth()
-2
+# options(gargle_oauth_cache = ".secrets")
+# # check the value of the option, if you like
+# gargle::gargle_oauth_cache()
+# googlesheets4::gs4_auth()
+# 2
 
 # Read in rosetta stone ----
 url <- "https://docs.google.com/spreadsheets/d/1tcvHnD8LtPmjro8eOMdOS6k6HKdND86mMAOk6AS_gfc/edit?usp=sharing"
@@ -56,18 +56,12 @@ data <- list.files(path = data.dir,
                    pattern = "Dot Point Measurements.txt",
                    full.names = T) %>%
   purrr::map_dfr(~ga.read.tm(.)) %>%
-  dplyr::mutate(campaignid = case_when(campaignid %in% c("2020-06_south-west_stereo-BRUVs_random-points_backwards",
-                                                         "2020-06_south-west_stereo-BRUVs_random-points_forwards") ~ 
-                                         "2020-06_south-west_stereo-BRUVs",
-                                       campaignid %in% c("2020-10_south-west_BOSS_east",
+  dplyr::mutate(campaignid = case_when(campaignid %in% c("2020-10_south-west_BOSS_east",
                                                          "2020-10_south-west_BOSS_north",
                                                          "2020-10_south-west_BOSS_south",
                                                          "2020-10_south-west_BOSS_west",
                                                          "2020-11_south-west_BOSS_multibeamed") ~ 
                                          "2020-10_south-west_BOSS",
-                                       campaignid %in% c("2020-10_south-west_stereo-BRUVs_random-points_backwards",
-                                                         "2020-10_south-west_stereo-BRUVs_random-points_forwards") ~
-                                         "2020-10_south-west_stereo-BRUVs",
                                        campaignid %in% "2021-03_West-Coast_BOSS" ~ "2021-03_West-Coast_BOSS")) %>%
   dplyr::mutate(opcode = str_replace_all(filename, c("N.jpg" = "","E.jpg" = "","S.jpg" = "",
                                                      "W.jpg" = "",".jpg" = "",".JPG" = ""))) %>%
@@ -77,8 +71,6 @@ data <- list.files(path = data.dir,
 
 data.with.stone <- left_join(data, stone)
 find.missing <- data.with.stone %>% dplyr::filter(is.na(clean.code)) # none missing
-
-unique(codes.dont.match$broad)
 
 # Now data has correct CAAB code can join with the correct schema (L1 - L5)
 data.with.levels <- data.with.stone %>%
@@ -109,5 +101,5 @@ tidy.habitat <- summarised %>%
   dplyr::filter(!is.na(longitude)) %>%
   glimpse()
 
-write.csv(tidy.habitat, "data/tidy/2021-2022_SwC_BRUV-BOSS_Habitat.csv",
+write.csv(tidy.habitat, "data/tidy/2021-2022_SwC_BOSS_Habitat.csv",
           row.names = F)
