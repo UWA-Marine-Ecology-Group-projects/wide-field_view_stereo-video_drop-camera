@@ -1,3 +1,12 @@
+###
+# Project: Wide-field view stereo-video drop-camera
+# Data:    BOSS Habitat data & SwC multibeam bathymetry
+# Task:    Extract bathymetry derivatives at sampled locations
+# Author:  Claude Spencer
+# Date:    August 2023
+##
+
+
 rm(list = ls())
 
 # Load libraries ----
@@ -21,7 +30,7 @@ detre <- as(object = detre, Class = "SpatRaster")                               
 names(detre) <- c("detrended", "lineartrend")
 
 preds <- rast(list(bathy, preds, detre[[1]]))                                   # Stack the derivatives with the bathymetry
-names(preds)[1] <- "depth"
+names(preds)[1] <- "mbdepth"
 
 saveRDS(preds, file = "data/spatial/rasters/2021-2022_SwC_bathymetry-derivatives.rds") # File is too large so is ignored
 
@@ -37,7 +46,7 @@ tidy.habitat <- read.csv("data/tidy/2021-2022_SwC_BOSS_Habitat.csv") %>%
                                     level_2 %in% "Substrate" & level_3 %in% "Unconsolidated (soft)"~ "sand",
                                     level_2 %in% "Substrate" & level_3 %in% "Consolidated (hard)"~ "rock")) %>%
   group_by(campaignid, sample) %>%
-  dplyr::mutate(total.points.annotated = sum(points)) %>%
+  dplyr::mutate(total.points.annotated = sum(count)) %>%
   ungroup() %>%
   glimpse()
 
@@ -45,3 +54,13 @@ habitat.vect <- vect(tidy.habitat, geom = c("longitude", "latitude"), crs = "eps
   project(bathy)                                                                # Project points to match crs of multibeam
 plot(bathy)
 plot(habitat.vect, add = T)
+
+tidy.habitat_t   <- as.data.frame(habitat.vect, geom = "XY") %>%                # Make a dataframe of reprojected habitat
+  left_join(tidy.habitat)                                                       # Lazy way of getting WGS84 lat longs back
+habitat.bathy.derivatives   <- cbind(tidy.habitat_t, 
+                                     terra::extract(preds, habitat.vect)) %>%   # Extract bathymetry derivatives for modelling
+  dplyr::filter(!is.na(depth),                                                  # Remove samples outside of the study area
+                !is.na(roughness)) %>%
+  glimpse()
+
+saveRDS(habitat.bathy.derivatives, "data/tidy/2021-2022_SwC_BOSS_Habitat-bathymetry.rds")

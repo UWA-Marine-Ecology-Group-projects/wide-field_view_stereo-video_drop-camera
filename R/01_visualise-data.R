@@ -1,3 +1,12 @@
+###
+# Project: Wide-field view stereo-video drop-camera
+# Data:    BOSS Habitat data
+# Task:    Visualise habitat data
+# Author:  Claude Spencer
+# Date:    August 2023
+##
+
+
 # Clear the environment ----
 rm(list = ls())
 
