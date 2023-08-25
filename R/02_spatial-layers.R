@@ -35,6 +35,8 @@ names(preds)[1] <- "mbdepth"
 saveRDS(preds, file = "data/spatial/rasters/2021-2022_SwC_bathymetry-derivatives.rds") # File is too large so is ignored
 
 # Load in the habitat data and extract derivatives ----
+preds <- readRDS("data/spatial/rasters/2021-2022_SwC_bathymetry-derivatives.rds")
+
 tidy.habitat <- read.csv("data/tidy/2021-2022_SwC_BOSS_Habitat.csv") %>%
   dplyr::filter(!level_2 %in% "Unscorable") %>%
   # Make broad habitat levels for modelling
@@ -51,8 +53,8 @@ tidy.habitat <- read.csv("data/tidy/2021-2022_SwC_BOSS_Habitat.csv") %>%
   glimpse()
 
 habitat.vect <- vect(tidy.habitat, geom = c("longitude", "latitude"), crs = "epsg:4326") %>%
-  project(bathy)                                                                # Project points to match crs of multibeam
-plot(bathy)
+  project(preds)                                                                # Project points to match crs of multibeam
+plot(preds[[1]])
 plot(habitat.vect, add = T)
 
 tidy.habitat_t   <- as.data.frame(habitat.vect, geom = "XY") %>%                # Make a dataframe of reprojected habitat

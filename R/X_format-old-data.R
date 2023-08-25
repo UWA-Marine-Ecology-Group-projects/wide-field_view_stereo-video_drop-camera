@@ -56,6 +56,7 @@ data <- list.files(path = data.dir,
                    pattern = "Dot Point Measurements.txt",
                    full.names = T) %>%
   purrr::map_dfr(~ga.read.tm(.)) %>%
+  dplyr::filter(!campaignid %in% "2020-11_south-west_BOSS_multibeamed") %>%
   dplyr::mutate(campaignid = case_when(campaignid %in% c("2020-10_south-west_BOSS_east",
                                                          "2020-10_south-west_BOSS_north",
                                                          "2020-10_south-west_BOSS_south",
