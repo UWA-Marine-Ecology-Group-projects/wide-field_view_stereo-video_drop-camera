@@ -6,9 +6,10 @@
 # Date:    August 2023
 ##
 
-# Part 1-FSS modeling----
+# Clear the environment ----
+rm(list = ls())
 
-# librarys----
+# Load libraries ----
 library(tidyverse)
 library(mgcv)
 library(MuMIn)
@@ -17,11 +18,9 @@ library(doBy)
 library(gplots)
 library(doSNOW)
 library(gamm4)
-library(RCurl) #needed to download data from GitHub
+library(RCurl)
 library(reshape2)
 library(FSSgam)
-
-rm(list=ls())
 
 # Set the study name ----
 name <- '2021-2022_SwC_BOSS'
@@ -36,12 +35,13 @@ names(dat)
 pred.vars <- c("mbdepth","roughness", "detrended", 
                "slope", "TPI", "aspect", "TRI")                         
 
-# Check for correlation of predictor variables- remove anything highly correlated (>0.95)---
+# Check for correlation of predictor variables ----
+# Remove anything highly correlated (>0.95) 
 round(cor(dat[ , pred.vars]), 2)
 
 # Remove TRI and slope
 
-# Review of individual predictors for even distribution---
+# Review of individual predictors for even distribution ----
 # Plot of likely transformations
 par(mfrow = c(3, 2))
 for (i in pred.vars) {
@@ -55,9 +55,8 @@ for (i in pred.vars) {
   plot(log(x + 1))
 }                                                                               # All look pretty OK
 
-# Check to make sure response vector has not more than 80% zeros ----
+# Check to make sure response variables have less than 80% zeros ----
 unique.vars = unique(as.character(dat$habitat))
-
 unique.vars.use = character()
 for(i in 1:length(unique.vars)){
   temp.dat = dat[which(dat$habitat == unique.vars[i]),]
@@ -66,17 +65,18 @@ for(i in 1:length(unique.vars)){
 }
 unique.vars.use                                                                 # All remain                                                                 # All good  
 
-# Run the full subset model selection----
-outdir    <- ("model out/") 
+# Set-up the environment to run model selection ----
+outdir    <- ("model out/")                                                     # Set the output directory
 use.dat   <- dat[dat$habitat %in% c(unique.vars.use), ]
 out.all   <- list()
 var.imp   <- list()
 
+# Re-set predictor and response variables ----
 pred.vars <- c("mbdepth","roughness", "detrended", 
                "TPI", "aspect")
 resp.vars <- unique.vars.use
 
-# Loop through the FSS function for each Abiotic taxa----
+# Run the full subset model selection process ----
 for(i in 1:length(resp.vars)){
   print(resp.vars[i])
   use.dat <- dat[dat$habitat == resp.vars[i],]
@@ -105,9 +105,7 @@ for(i in 1:length(resp.vars)){
   out.all   <- c(out.all, list(out.i))
   var.imp   <- c(var.imp, list(out.list$variable.importance$aic$variable.weights.raw))
   
-  
-  
-  # plot the best models
+  # Plot the best models
   for(m in 1:nrow(out.i)){
     best.model.name <- as.character(out.i$modname[m])
     
@@ -121,7 +119,7 @@ for(i in 1:length(resp.vars)){
   }
 }
 
-# Model fits and importance---
+# Save model fits and importance scores ----
 names(out.all) <- resp.vars
 names(var.imp) <- resp.vars
 all.mod.fits <- do.call("rbind", out.all)

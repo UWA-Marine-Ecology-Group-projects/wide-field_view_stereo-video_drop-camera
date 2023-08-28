@@ -21,10 +21,11 @@ library(ggnewscale)
 # Set the study name ----
 name <- '2021-2022_SwC_BOSS'
 
-# Load tidy data
+# Load metadata ----
 metadata <- read.csv(paste0("data/tidy/", name, "_Metadata.csv")) %>%
   glimpse()
 
+# Load habitat data and join with metadata ----
 tidy.habitat <- read.csv(paste0("data/tidy/", name, "_Habitat.csv")) %>%
   left_join(metadata) %>%
   dplyr::filter(!level_2 %in% "Unscorable") %>%

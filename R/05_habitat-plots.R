@@ -6,6 +6,7 @@
 # Date:    August 2023
 ##
 
+# Clear the environment ----
 rm(list = ls())
 
 # Load libraries ----
@@ -18,12 +19,12 @@ library(sf)
 # Set the study name ----
 name <- '2021-2022_SwC_BOSS'
 
-# Bring in the data ----
-# Habitat predictions in UTM50
+# Load the habitat predictions ----
+# UTM Zone 50
 preddf <- readRDS(paste0("model out/", name, "_habitat-prediction.RDS")) %>%
   glimpse()
 
-# Marine park data from CAPAD 2022'
+# Load marine park data from CAPAD 2022 ----
 sf_use_s2(F)
 marine.parks <- st_read("data/spatial/shapefiles/Collaborative_Australian_Protected_Areas_Database_(CAPAD)_2022_-_Marine.shp") %>%
   dplyr::mutate(ZONE_TYPE = str_replace_all(ZONE_TYPE, 
@@ -35,7 +36,7 @@ marine.parks <- st_read("data/spatial/shapefiles/Collaborative_Australian_Protec
           ymin = min(preddf$y),
           ymax = max(preddf$y))
 
-# Coastal waters limit
+# Load coastal waters limit shapefile ----
 cwatr <- st_read("data/spatial/shapefiles/amb_coastal_waters_limit.shp") %>%
   st_transform(32750) %>%
   st_crop(xmin = min(preddf$x),
@@ -52,12 +53,13 @@ hab_fills <- scale_fill_manual(values = c(
   "macro" = "darkgoldenrod4"
 ), name = "Habitat")
 
-# Build plot for dominant habitat ----
+# Build plot elements for dominant habitat ----
 p1 <- ggplot() +
   geom_tile(data = preddf, aes(x, y, fill = dom_tag)) +
   hab_fills + 
   new_scale_fill() +
-  geom_sf(data = marine.parks, fill = NA, aes(colour = ZONE_TYPE), size = 0.2, show.legend = F) +
+  geom_sf(data = marine.parks, fill = NA, aes(colour = ZONE_TYPE), 
+          size = 0.2, show.legend = F) +
   scale_colour_manual(values = c("National Park Zone" = "#7bbc63",
                                "Sanctuary Zone" = "#bfd054"),
                     name = "Marine Parks") +
@@ -68,7 +70,7 @@ p1 <- ggplot() +
   theme_minimal()
 p1
 
-# Build plot elements for individual habitat probabilities ----
+# Transform habitat predictions for easy plotting with ggplot::facet_wrap ----
 indclass <- preddf %>%
   pivot_longer(cols = starts_with("p"), names_to = "habitat", 
                values_to = "Probability") %>%
@@ -79,11 +81,13 @@ indclass <- preddf %>%
                                     habitat %in% "pseagrass" ~ "Seagrass")) %>%
   glimpse()
 
+# Build plot elements for individual habitat probabilities ----
 p2 <- ggplot() +
   geom_tile(data = indclass, aes(x, y, fill = Probability)) +
   scale_fill_viridis(option = "D", direction = -1) +
   new_scale_fill() +                     
-  geom_sf(data = marine.parks, fill = NA, aes(colour = ZONE_TYPE), size = 0.2, show.legend = F) +
+  geom_sf(data = marine.parks, fill = NA, aes(colour = ZONE_TYPE), 
+          size = 0.2, show.legend = F) +
   scale_colour_manual(values = c("National Park Zone" = "#7bbc63",
                                  "Sanctuary Zone" = "#bfd054"),
                       name = "Marine Parks") +
