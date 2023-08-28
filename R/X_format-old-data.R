@@ -5,6 +5,8 @@ library(tidyverse)
 library(GlobalArchive)
 library(googlesheets4)
 library(RCurl)
+library(lubridate)
+library(hms)
 
 # Functions
 data.dir <- "data/raw"
@@ -20,9 +22,9 @@ ga.read.tm <- function(flnm) {
 
 ga.select.habitat.metadata <- function(data) {
   data %>%
-    dplyr::select(campaignid, sample, latitude, longitude, date.time, site, location, status,
-                  depth, successful.habitat.panoramic, observer.habitat.panoramic) %>%
-    dplyr::filter(successful.habitat.panoramic %in% "Yes")
+    dplyr::select(campaignid, sample, latitude, longitude, date_time, site, location, status,
+                  depth, successful_habitat_forward, observer_habitat_forward) %>%
+    dplyr::filter(successful_habitat_forward %in% "Yes")
 }
 
 # designate project-specific cache
@@ -56,7 +58,6 @@ data <- list.files(path = data.dir,
                    pattern = "Dot Point Measurements.txt",
                    full.names = T) %>%
   purrr::map_dfr(~ga.read.tm(.)) %>%
-  dplyr::filter(!campaignid %in% "2020-11_south-west_BOSS_multibeamed") %>%
   dplyr::mutate(campaignid = case_when(campaignid %in% c("2020-10_south-west_BOSS_east",
                                                          "2020-10_south-west_BOSS_north",
                                                          "2020-10_south-west_BOSS_south",
@@ -83,24 +84,29 @@ missing.level <- data.with.levels %>%
   dplyr::filter(is.na(level_1)) # none = good
 
 summarised <- data.with.levels %>%
-  dplyr::mutate(count = 1) %>%
+  dplyr::mutate(number = 1) %>%
   dplyr::group_by(campaignid, opcode, code, level_1, level_2, level_3, level_4, level_5, 
                   level_6, level_7, level_8, family, genus, species) %>%
-  dplyr::summarise(count = sum(count)) %>%
+  dplyr::summarise(number = sum(number)) %>%
   dplyr::rename(sample = opcode) %>%
-  dplyr::rename(caab_code = code)
+  dplyr::rename(caab_code = code) %>%
+  dplyr::filter(!sample %in% c("235NREDO", "235EREDO", "235SREDO", "235WREDO",
+                               "278NREDO", "278EREDO", "278SREDO", "278WREDO", 
+                               "FH96N"))
 
 metadata <- read.csv("data/raw/2020-2021_south-west_BOSS-BRUV.Metadata.csv") %>%
-  dplyr::mutate(successful.habitat.panoramic = "Yes",
-                observer.habitat.panoramic = "Claude Spencer",
-                date.time = paste(date, time, sep = " ")) %>%                   # Need to fix properly
+  dplyr::mutate(successful_habitat_forward = "Yes",
+                observer_habitat_forward = "Claude Spencer") %>%
+  dplyr::mutate(time = ifelse(str_length(time) == 4, paste0("0", time), time)) %>%
+  dplyr::mutate(time = ifelse(str_length(time) == 5, paste0(time, ":00"), time)) %>%
+  dplyr::mutate(time = ifelse(str_length(time) == 7, paste0("0", time), time)) %>%
+  separate(date, into = c("year", "month", "day"), sep = c(4, 6)) %>%
+  dplyr::mutate(date = paste(year, month, day, sep = "-")) %>%
+  dplyr::mutate(date_time = paste0(date, "T", time, "+08:00")) %>%
   ga.select.habitat.metadata() %>%
   glimpse()
 
-tidy.habitat <- summarised %>%
-  left_join(metadata) %>%
-  dplyr::filter(!is.na(longitude)) %>%
-  glimpse()
-
-write.csv(tidy.habitat, "data/tidy/2021-2022_SwC_BOSS_Habitat.csv",
+write.csv(summarised, "data/tidy/2021-2022_SwC_BOSS_Habitat.csv",
+          row.names = F)
+write.csv(metadata, "data/tidy/2021-2022_SwC_BOSS_Metadata.csv",
           row.names = F)

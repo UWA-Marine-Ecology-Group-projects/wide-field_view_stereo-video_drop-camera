@@ -15,29 +15,36 @@ library(terra)
 library(stars)
 library(starsExtra)
 
+# Set the study name ----
+name <- '2021-2022_SwC_BOSS'
+
 # Load bathymetry data ----
-bathy <- rast("data/spatial/rasters/swc_multibeam_UTM50.tif")                   # UTM zone 50
-
-# Create bathymetry derivatives
-preds <- terrain(bathy, neighbors = 8,
-                 v = c("slope", "aspect", "TPI", "TRI", "roughness"),           # Remove here as necessary
-                 unit = "degrees")
-
-# Calculate detrended bathymetry
-zstar <- st_as_stars(bathy)                                                     # Convert to a stars object
-detre <- detrend(zstar, parallel = 8)                                           # Detrend bathymetry - This usually runs quite slow!
-detre <- as(object = detre, Class = "SpatRaster")                               # Convert it to a terra raster
-names(detre) <- c("detrended", "lineartrend")
-
-preds <- rast(list(bathy, preds, detre[[1]]))                                   # Stack the derivatives with the bathymetry
-names(preds)[1] <- "mbdepth"
-
-saveRDS(preds, file = "data/spatial/rasters/2021-2022_SwC_bathymetry-derivatives.rds") # File is too large so is ignored
+# bathy <- rast("data/spatial/rasters/swc_multibeam_UTM50.tif")                   # UTM zone 50
+# 
+# # Create bathymetry derivatives
+# preds <- terrain(bathy, neighbors = 8,
+#                  v = c("slope", "aspect", "TPI", "TRI", "roughness"),           # Remove here as necessary
+#                  unit = "degrees")
+# 
+# # Calculate detrended bathymetry
+# zstar <- st_as_stars(bathy)                                                     # Convert to a stars object
+# detre <- detrend(zstar, parallel = 8)                                           # Detrend bathymetry - This usually runs quite slow!
+# detre <- as(object = detre, Class = "SpatRaster")                               # Convert it to a terra raster
+# names(detre) <- c("detrended", "lineartrend")
+# 
+# preds <- rast(list(bathy, preds, detre[[1]]))                                   # Stack the derivatives with the bathymetry
+# names(preds)[1] <- "mbdepth"
+# 
+# saveRDS(preds, file = "data/spatial/rasters/2021-2022_SwC_bathymetry-derivatives.rds") # File is too large so is ignored
 
 # Load in the habitat data and extract derivatives ----
 preds <- readRDS("data/spatial/rasters/2021-2022_SwC_bathymetry-derivatives.rds")
 
+metadata <- read.csv("data/tidy/2021-2022_SwC_BOSS_Metadata.csv") %>%
+  glimpse()
+
 tidy.habitat <- read.csv("data/tidy/2021-2022_SwC_BOSS_Habitat.csv") %>%
+  left_join(metadata) %>%
   dplyr::filter(!level_2 %in% "Unscorable") %>%
   # Make broad habitat levels for modelling
   dplyr::mutate(habitat = case_when(level_2 %in% c("Sponges", "Cnidaria",
@@ -48,7 +55,7 @@ tidy.habitat <- read.csv("data/tidy/2021-2022_SwC_BOSS_Habitat.csv") %>%
                                     level_2 %in% "Substrate" & level_3 %in% "Unconsolidated (soft)"~ "sand",
                                     level_2 %in% "Substrate" & level_3 %in% "Consolidated (hard)"~ "rock")) %>%
   group_by(campaignid, sample) %>%
-  dplyr::mutate(total.points.annotated = sum(count)) %>%
+  dplyr::mutate(total.points.annotated = sum(number)) %>%
   ungroup() %>%
   glimpse()
 

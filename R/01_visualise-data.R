@@ -18,8 +18,15 @@ library(scatterpie)
 library(sf)
 library(ggnewscale)
 
+# Set the study name ----
+name <- '2021-2022_SwC_BOSS'
+
 # Load tidy data
+metadata <- read.csv("data/tidy/2021-2022_SwC_BOSS_Metadata.csv") %>%
+  glimpse()
+
 tidy.habitat <- read.csv("data/tidy/2021-2022_SwC_BOSS_Habitat.csv") %>%
+  left_join(metadata) %>%
   dplyr::filter(!level_2 %in% "Unscorable") %>%
   # Make broad habitat levels for plotting
   dplyr::mutate(habitat = case_when(level_2 %in% c("Sponges", "Cnidaria",
@@ -29,7 +36,7 @@ tidy.habitat <- read.csv("data/tidy/2021-2022_SwC_BOSS_Habitat.csv") %>%
                                     level_2 %in% "Seagrasses" ~ "seagrasses",
                                     level_2 %in% "Substrate" & level_3 %in% "Unconsolidated (soft)"~ "sand",
                                     level_2 %in% "Substrate" & level_3 %in% "Consolidated (hard)"~ "rock")) %>%
-  pivot_wider(names_from = habitat, values_from = count, values_fill = 0) %>%
+  pivot_wider(names_from = habitat, values_from = number, values_fill = 0) %>%
   glimpse()
 
 # Load shapefiles for plotting ----

@@ -23,7 +23,8 @@ library(FSSgam)
 
 rm(list=ls())
 
-name <- "sw-network"
+# Set the study name ----
+name <- '2021-2022_SwC_BOSS'
 
 # Bring in and format the data ----
 dat <- readRDS("data/tidy/2021-2022_SwC_BOSS_Habitat-bathymetry.rds") %>%
@@ -80,7 +81,7 @@ for(i in 1:length(resp.vars)){
   print(resp.vars[i])
   use.dat <- dat[dat$habitat == resp.vars[i],]
   use.dat   <- as.data.frame(use.dat)
-  Model1  <- gam(cbind(count, (total.points.annotated - count)) ~ 
+  Model1  <- gam(cbind(number, (total.points.annotated - number)) ~ 
                    s(mbdepth, bs = 'cr'),
                  family = binomial("logit"),  data = use.dat)
   

@@ -1,7 +1,7 @@
 ###
 # Project: Wide-field view stereo-video drop-camera
 # Data:    BOSS Habitat data
-# Task:    Running model selection
+# Task:    Predicting habitat
 # Author:  Claude Spencer
 # Date:    August 2023
 ##
@@ -15,23 +15,26 @@ library(terra)
 library(tidyverse)
 library(sf)
 
+# Set the study name ----
+name <- '2021-2022_SwC_BOSS'
+
 # read in
 dat   <- readRDS("data/tidy/2021-2022_SwC_BOSS_Habitat-bathymetry.rds") %>%
   dplyr::mutate(mbdepth = abs(mbdepth)) %>%                                     # Transform to positive otherwise sqrt(mbdepth) will error
-  pivot_wider(names_from = habitat, values_from = count, values_fill = 0) %>%
+  pivot_wider(names_from = habitat, values_from = number, values_fill = 0) %>%
   glimpse()
 
 preds  <- readRDS("data/spatial/rasters/2021-2022_SwC_bathymetry-derivatives.rds")
 plot(preds)
 
-preddf <- as.data.frame(preds, xy = TRUE, na.rm = TRUE)
+preddf <- as.data.frame(preds, xy = TRUE, na.rm = TRUE) %>%
+  dplyr::mutate(mbdepth = abs(mbdepth))
 
 # Use formula from top model from '03_model-selection.R' ----
 # Sessile invertebrates
 m_inverts <- gam(cbind(sessile.invertebrates, total.points.annotated - sessile.invertebrates) ~ 
                  s(mbdepth,     k = 5, bs = "cr")  + 
-                 s(roughness, k = 5, bs = "cr") + 
-                 s(detrended, k = 5, bs = "cr") +
+                 s(roughness, k = 5, bs = "cr") +
                  s(TPI, k = 5, bs = "cr"), 
                data = dat, method = "REML", family = binomial("logit"))
 summary(m_inverts)
@@ -41,8 +44,7 @@ plot(m_inverts, pages = 1, residuals = T)
 m_rock <- gam(cbind(rock, total.points.annotated - rock) ~ 
                    s(detrended,     k = 5, bs = "cr")  + 
                    s(mbdepth, k = 5, bs = "cr") + 
-                   s(roughness, k = 5, bs = "cr") +
-                   s(TPI, k = 5, bs = "cr"), 
+                   s(roughness, k = 5, bs = "cr"), 
                  data = dat, method = "REML", family = binomial("logit"))
 summary(m_rock)
 plot(m_rock, pages = 1, residuals = T)
@@ -50,8 +52,7 @@ plot(m_rock, pages = 1, residuals = T)
 # Sand
 m_sand <- gam(cbind(sand, total.points.annotated - sand) ~ 
                 s(detrended,     k = 5, bs = "cr")  + 
-                s(mbdepth, k = 5, bs = "cr") + 
-                s(roughness, k = 5, bs = "cr")  +
+                s(mbdepth, k = 5, bs = "cr") +
                 s(TPI, k = 5, bs = "cr"), 
               data = dat, method = "REML", family = binomial("logit"))
 summary(m_sand)
@@ -61,8 +62,7 @@ plot(m_sand, pages = 1, residuals = T)
 m_seagrass <- gam(cbind(seagrasses, total.points.annotated - seagrasses) ~ 
                 s(detrended,     k = 5, bs = "cr")  + 
                 s(mbdepth, k = 5, bs = "cr") + 
-                s(roughness, k = 5, bs = "cr")  +
-                s(TPI, k = 5, bs = "cr"), 
+                s(roughness, k = 5, bs = "cr"), 
               data = dat, method = "REML", family = binomial("logit"))
 summary(m_seagrass)
 plot(m_seagrass, pages = 1, residuals = T)
@@ -70,8 +70,7 @@ plot(m_seagrass, pages = 1, residuals = T)
 # Macroalgae
 m_macro <- gam(cbind(macroalgae, total.points.annotated - macroalgae) ~ 
                  s(detrended,     k = 5, bs = "cr")  + 
-                 s(mbdepth, k = 5, bs = "cr") + 
-                 s(roughness, k = 5, bs = "cr")  +
+                 s(mbdepth, k = 5, bs = "cr") +
                  s(TPI, k = 5, bs = "cr"), 
                data = dat, method = "REML", family = binomial("logit"))
 summary(m_macro)
@@ -101,7 +100,5 @@ preddf$dom_tag <- apply(preddf %>% dplyr::select(pmacro, prock, psand, pseagrass
 preddf$dom_tag <- sub('.', '', preddf$dom_tag)
 head(preddf)
 
-# Make 2 plots ----
-# Dominant habitat
-
-# Individual probability
+# Save out
+saveRDS(preddf, file = "model out/2021-2022_SwC_BOSS_habitat-prediction.RDS")
