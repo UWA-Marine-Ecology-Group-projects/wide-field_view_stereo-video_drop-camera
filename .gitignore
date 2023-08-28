@@ -3,3 +3,6 @@
 .RData
 .Ruserdata
 .secrets
+
+/R/X_format_old-data.R
+/data/raw
