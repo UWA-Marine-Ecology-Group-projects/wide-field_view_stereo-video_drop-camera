@@ -20,7 +20,7 @@ name <- '2021-2022_SwC_BOSS'
 
 # Bring in the data ----
 # Habitat predictions in UTM50
-preddf <- readRDS("model out/2021-2022_SwC_BOSS_habitat-prediction.RDS") %>%
+preddf <- readRDS(paste0("model out/", name, "_habitat-prediction.RDS")) %>%
   glimpse()
 
 # Marine park data from CAPAD 2022'
@@ -91,7 +91,7 @@ p2 <- ggplot() +
   coord_sf(xlim = c(min(preddf$x), max(preddf$x)),
            ylim = c(min(preddf$y), max(preddf$y))) +
   labs(x = NULL, y = NULL, fill = "Probability") +
-  theme_minimal()
+  theme_minimal()+
   facet_wrap(~habitat) +
   theme(axis.text.x = element_text(size = 7))
 p2

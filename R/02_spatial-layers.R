@@ -38,12 +38,12 @@ name <- '2021-2022_SwC_BOSS'
 # saveRDS(preds, file = "data/spatial/rasters/2021-2022_SwC_bathymetry-derivatives.rds") # File is too large so is ignored
 
 # Load in the habitat data and extract derivatives ----
-preds <- readRDS("data/spatial/rasters/2021-2022_SwC_bathymetry-derivatives.rds")
+preds <- readRDS(paste0("data/spatial/rasters/", name, "_bathymetry-derivatives.rds"))
 
-metadata <- read.csv("data/tidy/2021-2022_SwC_BOSS_Metadata.csv") %>%
+metadata <- read.csv(paste0("data/tidy/", name, "_Metadata.csv")) %>%
   glimpse()
 
-tidy.habitat <- read.csv("data/tidy/2021-2022_SwC_BOSS_Habitat.csv") %>%
+tidy.habitat <- read.csv(paste0("data/tidy/", name, "_Habitat.csv")) %>%
   left_join(metadata) %>%
   dplyr::filter(!level_2 %in% "Unscorable") %>%
   # Make broad habitat levels for modelling
@@ -72,4 +72,4 @@ habitat.bathy.derivatives   <- cbind(tidy.habitat_t,
                 !is.na(roughness)) %>%
   glimpse()
 
-saveRDS(habitat.bathy.derivatives, "data/tidy/2021-2022_SwC_BOSS_Habitat-bathymetry.rds")
+saveRDS(habitat.bathy.derivatives, paste0("data/tidy/", name, "_habitat-bathymetry.rds"))

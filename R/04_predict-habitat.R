@@ -19,12 +19,12 @@ library(sf)
 name <- '2021-2022_SwC_BOSS'
 
 # read in
-dat   <- readRDS("data/tidy/2021-2022_SwC_BOSS_Habitat-bathymetry.rds") %>%
+dat   <- readRDS(paste0("data/tidy/", name, "_Habitat-bathymetry.rds")) %>%
   dplyr::mutate(mbdepth = abs(mbdepth)) %>%                                     # Transform to positive otherwise sqrt(mbdepth) will error
   pivot_wider(names_from = habitat, values_from = number, values_fill = 0) %>%
   glimpse()
 
-preds  <- readRDS("data/spatial/rasters/2021-2022_SwC_bathymetry-derivatives.rds")
+preds  <- readRDS(paste0("data/spatial/rasters/", name, "_bathymetry-derivatives.rds"))
 plot(preds)
 
 preddf <- as.data.frame(preds, xy = TRUE, na.rm = TRUE) %>%
@@ -101,4 +101,4 @@ preddf$dom_tag <- sub('.', '', preddf$dom_tag)
 head(preddf)
 
 # Save out
-saveRDS(preddf, file = "model out/2021-2022_SwC_BOSS_habitat-prediction.RDS")
+saveRDS(preddf, file = paste0("model out/", name, "_habitat-prediction.RDS"))

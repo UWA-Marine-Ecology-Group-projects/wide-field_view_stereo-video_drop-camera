@@ -27,7 +27,7 @@ rm(list=ls())
 name <- '2021-2022_SwC_BOSS'
 
 # Bring in and format the data ----
-dat <- readRDS("data/tidy/2021-2022_SwC_BOSS_Habitat-bathymetry.rds") %>%
+dat <- readRDS(paste0("data/tidy/", name, "_habitat-bathymetry.rds")) %>%
   dplyr::mutate(mbdepth = abs(mbdepth)) %>%                                     # Transform to positive otherwise sqrt(mbdepth) will error
   glimpse()
 

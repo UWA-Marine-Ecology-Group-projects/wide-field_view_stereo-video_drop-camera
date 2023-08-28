@@ -22,10 +22,10 @@ library(ggnewscale)
 name <- '2021-2022_SwC_BOSS'
 
 # Load tidy data
-metadata <- read.csv("data/tidy/2021-2022_SwC_BOSS_Metadata.csv") %>%
+metadata <- read.csv(paste0("data/tidy/", name, "_Metadata.csv")) %>%
   glimpse()
 
-tidy.habitat <- read.csv("data/tidy/2021-2022_SwC_BOSS_Habitat.csv") %>%
+tidy.habitat <- read.csv(paste0("data/tidy/", name, "_Habitat.csv")) %>%
   left_join(metadata) %>%
   dplyr::filter(!level_2 %in% "Unscorable") %>%
   # Make broad habitat levels for plotting
