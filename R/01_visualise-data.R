@@ -32,11 +32,11 @@ tidy.habitat <- read.csv(paste0("data/tidy/", name, "_Habitat.csv")) %>%
   # Make broad habitat levels for plotting
   dplyr::mutate(habitat = case_when(level_2 %in% c("Sponges", "Cnidaria",
                                                    "Bryozoa", "Sessile invertebrates",
-                                                   "Ascidians", "Echinoderms") ~ "sessile.invertebrates",
-                                    level_2 %in% "Macroalgae" ~ "macroalgae",
-                                    level_2 %in% "Seagrasses" ~ "seagrasses",
-                                    level_2 %in% "Substrate" & level_3 %in% "Unconsolidated (soft)"~ "sand",
-                                    level_2 %in% "Substrate" & level_3 %in% "Consolidated (hard)"~ "rock")) %>%
+                                                   "Ascidians", "Echinoderms") ~ "Sessile invertebrates",
+                                    level_2 %in% "Macroalgae" ~ "Macroalgae",
+                                    level_2 %in% "Seagrasses" ~ "Seagrass",
+                                    level_2 %in% "Substrate" & level_3 %in% "Unconsolidated (soft)"~ "Sand",
+                                    level_2 %in% "Substrate" & level_3 %in% "Consolidated (hard)"~ "Rock")) %>%
   pivot_wider(names_from = habitat, values_from = number, values_fill = 0) %>%
   glimpse()
 
@@ -67,8 +67,15 @@ cwatr <- st_read("data/spatial/shapefiles/amb_coastal_waters_limit.shp") %>%
           ymin = min(tidy.habitat$latitude),
           ymax = max(tidy.habitat$latitude))
 
+hab_fills <- scale_fill_manual(values = c("Sessile invertebrates" = "plum",
+                             "Macroalgae" = "darkgoldenrod4",
+                             "Seagrass" = "forestgreen",
+                             "Rock" = "grey40",
+                             "Sand" = "wheat"), 
+                  name = "Habitat")
+
 # Visualise data as a scatterpie ----
-ggplot() +
+p1 <- ggplot() +
   geom_sf(data = aus, fill = "seashell2", colour = "black", size = 0.2) +
   geom_sf(data = marine.parks, aes(fill = ZONE_TYPE), alpha = 2/5, colour = NA) +
   scale_fill_manual(values = c("National Park Zone" = "#7bbc63",
@@ -77,14 +84,9 @@ ggplot() +
   new_scale_fill() +
   geom_sf(data = cwatr, colour = "firebrick", alpha = 4/5, size = 0.3) +
   geom_scatterpie(data = tidy.habitat, aes(x = longitude, y = latitude),
-                  cols = c("sessile.invertebrates", "macroalgae", "seagrasses", "rock", "sand"),
+                  cols = c("Sessile invertebrates", "Macroalgae", "Seagrass", "Rock", "Sand"),
                   pie_scale = 0.25, colour = NA) +
-  scale_fill_manual(values = c("sessile.invertebrates" = "plum",
-                               "macroalgae" = "darkgoldenrod4",
-                               "seagrasses" = "forestgreen",
-                               "rock" = "grey40",
-                               "sand" = "wheat"), 
-                    name = "Habitat") +
+  hab_fills +
   labs(x = "Longitude", y = "Latitude") +
   coord_sf(xlim = c(114.75, 114.95), ylim = c(-34.01, -34.14)) +
   theme_minimal() +
@@ -92,3 +94,7 @@ ggplot() +
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank())
 
+png(filename = paste0("plots/", name, "_scatterpies.png"),
+    units = "in", res = 300, height = 4, width = 8)
+p1
+dev.off()

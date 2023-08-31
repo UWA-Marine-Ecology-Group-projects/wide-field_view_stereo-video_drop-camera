@@ -15,6 +15,8 @@ library(ggplot2)
 library(ggnewscale)
 library(terra)
 library(sf)
+library(viridis)
+library(patchwork)
 
 # Set the study name ----
 name <- '2021-2022_SwC_BOSS'
@@ -22,6 +24,11 @@ name <- '2021-2022_SwC_BOSS'
 # Load the habitat predictions ----
 # UTM Zone 50
 preddf <- readRDS(paste0("model out/", name, "_habitat-prediction.RDS")) %>%
+  dplyr::mutate(dom_tag = recode(dom_tag,
+                                 "sand" = "Sand",
+                                 "inverts" = "Sessile invertebrates",
+                                 "rock" = "Rock",
+                                 "macro" = "Macroalgae")) %>%
   glimpse()
 
 # Load marine park data from CAPAD 2022 ----
@@ -47,10 +54,10 @@ cwatr <- st_read("data/spatial/shapefiles/amb_coastal_waters_limit.shp") %>%
 # Set colours for habitat plotting ----
 unique(preddf$dom_tag)
 hab_fills <- scale_fill_manual(values = c(
-  "sand" = "wheat",
-  "inverts" = "plum",
-  "rock" = "grey40",
-  "macro" = "darkgoldenrod4"
+  "Sand" = "wheat",
+  "Sessile invertebrates" = "plum",
+  "Rock" = "grey40",
+  "Macroalgae" = "darkgoldenrod4"
 ), name = "Habitat")
 
 # Build plot elements for dominant habitat ----
@@ -68,7 +75,10 @@ p1 <- ggplot() +
            ylim = c(min(preddf$y), max(preddf$y))) +
   labs(x = NULL, y = NULL, colour = NULL) +
   theme_minimal()
+png(filename = paste0("plots/", name, "_dominant-habitat.png"),
+    units = "in", res = 300, height = 4, width = 8)
 p1
+dev.off()
 
 # Transform habitat predictions for easy plotting with ggplot::facet_wrap ----
 indclass <- preddf %>%
@@ -98,4 +108,7 @@ p2 <- ggplot() +
   theme_minimal()+
   facet_wrap(~habitat) +
   theme(axis.text.x = element_text(size = 7))
+png(filename = paste0("plots/", name, "_individual-habitat.png"),
+    units = "in", res = 300, height = 4, width = 8)
 p2
+dev.off()
