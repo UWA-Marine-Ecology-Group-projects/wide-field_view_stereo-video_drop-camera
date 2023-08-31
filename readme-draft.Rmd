@@ -1,0 +1,413 @@
+---
+title: "Modelling horizontal-facing benthic drop camera imagery"
+author: "Claude Spencer"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Visualise the data
+
+In this stage, we will load and visualise tidy data exported from CheckEM (https://marine-ecology.shinyapps.io/checkem).
+
+Load libraries 
+```{r, results='hide', warning=FALSE, message=FALSE}
+library(tidyverse)
+library(GlobalArchive)
+library(ggplot2)
+library(scatterpie)
+library(sf)
+library(ggnewscale)
+library(terra)
+library(stars)
+library(starsExtra)
+```
+
+Set the study name
+```{r}
+name <- '2021-2022_SwC_BOSS'
+```
+
+Load metadata
+```{r}
+metadata <- read.csv(paste0("data/tidy/", name, "_Metadata.csv")) %>%
+  glimpse()
+```
+
+Load habitat data and join with metadata
+```{r}
+tidy.habitat <- read.csv(paste0("data/tidy/", name, "_Habitat.csv")) %>%
+  left_join(metadata) %>%
+  dplyr::filter(!level_2 %in% "Unscorable") %>%
+  # Make broad habitat levels for plotting
+  dplyr::mutate(habitat = case_when(level_2 %in% c("Sponges", "Cnidaria",
+                                                   "Bryozoa", "Sessile invertebrates",
+                                                   "Ascidians", "Echinoderms") ~ "Sessile invertebrates",
+                                    level_2 %in% "Macroalgae" ~ "Macroalgae",
+                                    level_2 %in% "Seagrasses" ~ "Seagrass",
+                                    level_2 %in% "Substrate" & level_3 %in% "Unconsolidated (soft)"~ "Sand",
+                                    level_2 %in% "Substrate" & level_3 %in% "Consolidated (hard)"~ "Rock")) %>%
+  pivot_wider(names_from = habitat, values_from = number, values_fill = 0) %>%
+  glimpse()
+```
+
+Load shapefiles for plotting
+```{r}
+sf_use_s2(F)                                                                    # Needed so st_crop doesn't error when cropping with lat longs                                                                   # Otherwise st_crop errors - need to find a better way
+# Marine park data from CAPAD 2022
+marine.parks <- st_read("data/spatial/shapefiles/Collaborative_Australian_Protected_Areas_Database_(CAPAD)_2022_-_Marine.shp") %>%
+  st_crop(xmin = min(tidy.habitat$longitude),
+          xmax = max(tidy.habitat$longitude),
+          ymin = min(tidy.habitat$latitude),
+          ymax = max(tidy.habitat$latitude)) %>%
+  dplyr::mutate(ZONE_TYPE = str_replace_all(ZONE_TYPE, 
+                                            "\\s*\\([^\\)]+\\)", "")) %>%
+  dplyr::filter(ZONE_TYPE %in% c("National Park Zone", "Sanctuary Zone"))
+```
+
+High res outline for Australia
+```{r}
+aus <- st_read("data/spatial/shapefiles/cstauscd_r.mif", crs = 4283) %>%
+  dplyr::filter(!FEAT_CODE %in% "sea") %>%
+  st_crop(xmin = min(tidy.habitat$longitude),
+          xmax = max(tidy.habitat$longitude),
+          ymin = min(tidy.habitat$latitude),
+          ymax = max(tidy.habitat$latitude))
+```
+
+Coastal waters limit
+```{r}
+cwatr <- st_read("data/spatial/shapefiles/amb_coastal_waters_limit.shp") %>%
+  st_crop(xmin = min(tidy.habitat$longitude),
+          xmax = max(tidy.habitat$longitude),
+          ymin = min(tidy.habitat$latitude),
+          ymax = max(tidy.habitat$latitude))
+```
+
+```{r}
+hab_fills <- scale_fill_manual(values = c("Sessile invertebrates" = "plum",
+                             "Macroalgae" = "darkgoldenrod4",
+                             "Seagrass" = "forestgreen",
+                             "Rock" = "grey40",
+                             "Sand" = "wheat"), 
+                  name = "Habitat")
+```
+
+Visualise data as a scatterpie
+```{r}
+ggplot() +
+  geom_sf(data = aus, fill = "seashell2", colour = "black", size = 0.2) +
+  geom_sf(data = marine.parks, aes(fill = ZONE_TYPE), alpha = 2/5, colour = NA) +
+  scale_fill_manual(values = c("National Park Zone" = "#7bbc63",
+                               "Sanctuary Zone" = "#bfd054"),
+                    name = "Marine Parks") +
+  new_scale_fill() +
+  geom_sf(data = cwatr, colour = "firebrick", alpha = 4/5, size = 0.3) +
+  geom_scatterpie(data = tidy.habitat, aes(x = longitude, y = latitude),
+                  cols = c("Sessile invertebrates", "Macroalgae", "Seagrass", "Rock", "Sand"),
+                  pie_scale = 0.25, colour = NA) +
+  hab_fills +
+  labs(x = "Longitude", y = "Latitude") +
+  coord_sf(xlim = c(114.75, 114.95), ylim = c(-34.01, -34.14)) +
+  theme_minimal() +
+  theme(panel.background = element_rect(fill = "#b9d1d6"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+```
+
+## Load in spatial bathymetry data and extract bathymetry derivatives at each sample point
+
+Load bathymetry data
+```{r}
+bathy <- rast("data/spatial/rasters/swc_multibeam_UTM50.tif")
+```
+
+Create bathymetry derivatives
+```{r}
+preds <- terrain(bathy, neighbors = 8,
+                 v = c("slope", "aspect", "TPI", "TRI", "roughness"),
+                 unit = "degrees")
+```
+
+Calculate detrended bathymetry
+```{r}
+zstar <- st_as_stars(bathy)                                                    
+detre <- detrend(zstar, parallel = 8)                                           
+detre <- as(object = detre, Class = "SpatRaster")                               
+names(detre) <- c("detrended", "lineartrend")
+```
+
+Stack the derivatives
+```{r}
+preds <- rast(list(bathy, preds, detre[[1]]))                                   
+names(preds)[1] <- "mbdepth"
+```
+
+Load metadata
+```{r}
+metadata <- read.csv(paste0("data/tidy/", name, "_Metadata.csv")) %>%
+  glimpse()
+```
+
+Load habitat data and join with metadata
+```{r}
+tidy.habitat <- read.csv(paste0("data/tidy/", name, "_Habitat.csv")) %>%
+  left_join(metadata) %>%
+  dplyr::filter(!level_2 %in% "Unscorable") %>%
+  # Make broad habitat levels for modelling
+  dplyr::mutate(habitat = case_when(level_2 %in% c("Sponges", "Cnidaria",
+                                                   "Bryozoa", "Sessile invertebrates",
+                                                   "Ascidians", "Echinoderms") ~ "sessile.invertebrates",
+                                    level_2 %in% "Macroalgae" ~ "macroalgae",
+                                    level_2 %in% "Seagrasses" ~ "seagrasses",
+                                    level_2 %in% "Substrate" & level_3 %in% "Unconsolidated (soft)"~ "sand",
+                                    level_2 %in% "Substrate" & level_3 %in% "Consolidated (hard)"~ "rock")) %>%
+  group_by(campaignid, sample) %>%
+  dplyr::mutate(total.points.annotated = sum(number)) %>%
+  ungroup() %>%
+  glimpse()
+```
+
+Transform the habitat to a SpatVector
+```{r}
+habitat.vect <- vect(tidy.habitat, geom = c("longitude", "latitude"), crs = "epsg:4326") %>%
+  project(preds)                                                                
+
+plot(preds[[1]])
+plot(habitat.vect, add = T)
+```
+
+Run the extraction process
+```{r}
+tidy.habitat_t   <- as.data.frame(habitat.vect, geom = "XY") %>%               
+  left_join(tidy.habitat)                                                       
+
+habitat.bathy.derivatives   <- cbind(tidy.habitat_t, 
+                                     terra::extract(preds, habitat.vect)) %>%   
+  dplyr::filter(!is.na(depth),                                                  
+                !is.na(roughness)) %>%
+  glimpse()
+```
+
+# Model selection
+Bring in and format the data
+
+```{r}
+dat <- readRDS(paste0("data/tidy/", name, "_habitat-bathymetry.rds")) %>%
+  dplyr::mutate(mbdepth = abs(mbdepth)) %>%                                     
+  glimpse()
+```
+
+Set predictor variables
+```{r}
+names(dat)
+pred.vars <- c("mbdepth","roughness", "detrended", 
+               "slope", "TPI", "aspect", "TRI")  
+```
+
+Check for correlation of predictor variables
+Remove anything highly correlated (>0.95)
+```{r}
+round(cor(dat[ , pred.vars]), 2)
+```
+
+Review of individual predictors for even distribution
+Plot of likely transformations
+```{r}
+par(mfrow = c(3, 2))
+for (i in pred.vars) {
+  x <-dat[ , i]
+  x = as.numeric(unlist(x))
+  hist((x))
+  plot((x), main = paste(i))
+  hist(sqrt(x))
+  plot(sqrt(x))
+  hist(log(x + 1))
+  plot(log(x + 1))
+}
+```
+
+Check to make sure response variables have less than 80% zeros
+```{r}
+unique.vars = unique(as.character(dat$habitat))
+unique.vars.use = character()
+for(i in 1:length(unique.vars)){
+  temp.dat = dat[which(dat$habitat == unique.vars[i]),]
+  if(length(which(temp.dat$habitat == 0)) / nrow(temp.dat) < 0.8){
+    unique.vars.use = c(unique.vars.use, unique.vars[i])}
+}
+unique.vars.use   
+```
+
+Set-up the environment to run model selection
+```{r}
+outdir    <- ("model out/")                                                     
+use.dat   <- dat[dat$habitat %in% c(unique.vars.use), ]
+out.all   <- list()
+var.imp   <- list()
+```
+
+Re-set predictor and response variables
+```{r}
+pred.vars <- c("mbdepth","roughness", "detrended", 
+               "TPI", "aspect")
+resp.vars <- unique.vars.use
+```
+
+Run the full subset model selection process
+```{r}
+for(i in 1:length(resp.vars)){
+  print(resp.vars[i])
+  use.dat <- dat[dat$habitat == resp.vars[i],]
+  use.dat   <- as.data.frame(use.dat)
+  Model1  <- gam(cbind(number, (total.points.annotated - number)) ~ 
+                   s(mbdepth, bs = 'cr'),
+                 family = binomial("logit"),  data = use.dat)
+  
+  model.set <- generate.model.set(use.dat = use.dat,
+                                  test.fit = Model1,
+                                  pred.vars.cont = pred.vars,
+                                  cyclic.vars = c("aspect"),
+                                  k = 5,
+                                  cov.cutoff = 0.7
+  )
+  out.list <- fit.model.set(model.set,
+                            max.models = 600,
+                            parallel = T)
+  names(out.list)
+  
+  out.list$failed.models # examine the list of failed models
+  mod.table <- out.list$mod.data.out  # look at the model selection table
+  mod.table <- mod.table[order(mod.table$AICc), ]
+  mod.table$cumsum.wi <- cumsum(mod.table$wi.AICc)
+  out.i     <- mod.table[which(mod.table$delta.AICc <= 2), ]
+  out.all   <- c(out.all, list(out.i))
+  var.imp   <- c(var.imp, list(out.list$variable.importance$aic$variable.weights.raw))
+  
+  # Plot the best models
+  for(m in 1:nrow(out.i)){
+    best.model.name <- as.character(out.i$modname[m])
+    
+    png(file = paste(outdir, m, resp.vars[i], "mod_fits.png", sep = ""))
+    if(best.model.name != "null"){
+      par(mfrow = c(3, 1), mar = c(9, 4, 3, 1))
+      best.model = out.list$success.models[[best.model.name]]
+      plot(best.model, all.terms = T, pages = 1, residuals = T, pch = 16)
+      mtext(side = 2, text = resp.vars[i], outer = F)}  
+    dev.off()
+  }
+}
+```
+
+Save model fits and importance scores
+```{r}
+names(out.all) <- resp.vars
+names(var.imp) <- resp.vars
+all.mod.fits <- do.call("rbind", out.all)
+all.var.imp  <- do.call("rbind", var.imp)
+write.csv(all.mod.fits[ , -2], file = paste0(outdir, name, "_all.mod.fits.csv"))
+write.csv(all.var.imp,         file = paste0(outdir, name, "_all.var.imp.csv"))
+```
+
+# Predict habitat
+Load habitat data
+```{r}
+dat   <- readRDS(paste0("data/tidy/", name, "_Habitat-bathymetry.rds")) %>%
+  dplyr::mutate(mbdepth = abs(mbdepth)) %>%                                     
+  pivot_wider(names_from = habitat, values_from = number, values_fill = 0) %>%
+  glimpse()
+```
+
+Load the bathy and derivatives
+```{r}
+preds  <- readRDS(paste0("data/spatial/rasters/", name, "_bathymetry-derivatives.rds"))
+plot(preds)
+```
+
+Transform bathy to a dataframe to predict onto
+```{r}
+preddf <- as.data.frame(preds, xy = TRUE, na.rm = TRUE) %>%
+  dplyr::mutate(mbdepth = abs(mbdepth))
+```
+
+Set models using the formula from top model
+Sessile invertebrates
+```{r}
+m_inverts <- gam(cbind(sessile.invertebrates, total.points.annotated - sessile.invertebrates) ~ 
+                 s(mbdepth,     k = 5, bs = "cr")  + 
+                 s(roughness, k = 5, bs = "cr") +
+                 s(TPI, k = 5, bs = "cr"), 
+               data = dat, method = "REML", family = binomial("logit"))
+summary(m_inverts)
+plot(m_inverts, pages = 1, residuals = T)
+```
+
+Rock
+```{r}
+m_rock <- gam(cbind(rock, total.points.annotated - rock) ~ 
+                   s(detrended,     k = 5, bs = "cr")  + 
+                   s(mbdepth, k = 5, bs = "cr") + 
+                   s(roughness, k = 5, bs = "cr"), 
+                 data = dat, method = "REML", family = binomial("logit"))
+summary(m_rock)
+plot(m_rock, pages = 1, residuals = T)
+```
+
+Sand
+```{r}
+m_sand <- gam(cbind(sand, total.points.annotated - sand) ~ 
+                s(detrended,     k = 5, bs = "cr")  + 
+                s(mbdepth, k = 5, bs = "cr") +
+                s(TPI, k = 5, bs = "cr"), 
+              data = dat, method = "REML", family = binomial("logit"))
+summary(m_sand)
+plot(m_sand, pages = 1, residuals = T)
+```
+
+Seagrasses
+```{r}
+m_seagrass <- gam(cbind(seagrasses, total.points.annotated - seagrasses) ~ 
+                s(detrended,     k = 5, bs = "cr")  + 
+                s(mbdepth, k = 5, bs = "cr") + 
+                s(roughness, k = 5, bs = "cr"), 
+              data = dat, method = "REML", family = binomial("logit"))
+summary(m_seagrass)
+plot(m_seagrass, pages = 1, residuals = T)
+```
+
+Macroalgae
+m_macro <- gam(cbind(macroalgae, total.points.annotated - macroalgae) ~ 
+                 s(detrended,     k = 5, bs = "cr")  + 
+                 s(mbdepth, k = 5, bs = "cr") +
+                 s(TPI, k = 5, bs = "cr"), 
+               data = dat, method = "REML", family = binomial("logit"))
+summary(m_macro)
+plot(m_macro, pages = 1, residuals = T)
+
+# Predict, rasterise and plot habitat predictions ----
+preddf <- cbind(preddf, 
+                "pmacro" = predict(m_macro, preddf, type = "response"),
+                "prock" = predict(m_rock, preddf, type = "response"),
+                "psand" = predict(m_sand, preddf, type = "response"),
+                "pseagrass" = predict(m_seagrass, preddf, type = "response"),
+                "pinverts" = predict(m_inverts, preddf, type = "response")) %>%
+  glimpse()
+
+prasts <- rast(preddf %>% dplyr::select(x, y, pmacro, prock, psand, pseagrass, pinverts),
+                        crs = crs(preds)) %>%
+  aggregate(fact = 5, fun = "mean")                                             # Aggregate to speed up plots 
+plot(prasts)
+summary(prasts)
+
+# Transform back to a dataframe for tidy plotting ----
+preddf <- as.data.frame(prasts, xy = T, na.rm = T) %>%
+  glimpse()
+
+# Categorise by dominant habitat ----
+preddf$dom_tag <- apply(preddf %>% dplyr::select(pmacro, prock, psand, pseagrass, pinverts), 1,
+                         FUN = function(x){names(which.max(x))})
+preddf$dom_tag <- sub('.', '', preddf$dom_tag)
+head(preddf)
+
